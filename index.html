@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0d1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="스톱워치">
+<title>단거리 스톱워치</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --line: #2a313c;
+    --text: #f0f3f6;
+    --muted: #8b949e;
+    --go: #2ecc71;
+    --go-ink: #04210f;
+    --lap: #3b82f6;
+    --stop: #ef4444;
+    --reset: #f59e0b;
+    --reset-ink: #2a1a00;
+    --warn: #facc15;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+    overscroll-behavior: none;
+    user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  .app {
+    height: 100dvh;
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* ---------- 상단 절반 ---------- */
+  .top {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .gear {
+    position: absolute; top: 12px; right: 12px;
+    width: 44px; height: 44px; border-radius: 12px;
+    background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+    font-size: 22px; display: grid; place-items: center;
+  }
+  .gear:disabled { opacity: .3; }
+  .delay-tag {
+    position: absolute; top: 22px; left: 16px;
+    font-size: 13px; color: var(--muted);
+  }
+  .time {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    font-weight: 700;
+    font-size: min(24vw, 15vh);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .time small { font-size: .55em; color: var(--muted); }
+  .signal {
+    font-size: min(17vw, 11vh);
+    font-weight: 800;
+    color: var(--warn);
+    text-align: center;
+  }
+  .signal.wait { color: var(--muted); font-size: min(9vw, 6vh); font-weight: 600; }
+  .start-btn {
+    width: min(78vw, 360px); aspect-ratio: 1 / 1; max-height: 38vh;
+    border-radius: 50%;
+    border: none;
+    background: radial-gradient(circle at 35% 30%, #4ee08f, var(--go) 60%, #1e9e55);
+    color: var(--go-ink);
+    font-size: min(10vw, 5.5vh); font-weight: 800;
+    box-shadow: 0 0 0 10px rgba(46, 204, 113, .15), 0 12px 30px rgba(0,0,0,.4);
+  }
+  .start-btn:active { transform: scale(.97); }
+  .start-btn:disabled { filter: grayscale(.6) brightness(.7); }
+  .hidden { display: none !important; }
+
+  /* ---------- 하단 절반 ---------- */
+  .bottom {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    gap: 12px;
+    padding: 12px 16px 16px;
+    min-height: 0;
+  }
+  .laps {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(5, 1fr);
+    grid-auto-flow: column;
+    gap: 6px 10px;
+  }
+  .lap {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 12px;
+    border-radius: 10px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    font-variant-numeric: tabular-nums;
+    min-height: 0;
+  }
+  .lap .no { color: var(--muted); font-size: 14px; }
+  .lap .t { font-size: clamp(16px, 5vw, 24px); font-weight: 700; }
+  .lap.empty { opacity: .35; }
+  .lap.empty .t { color: var(--muted); font-weight: 500; }
+  .lap.new { animation: pop .35s ease-out; }
+  @keyframes pop { from { background: #23406e; } to { background: var(--panel); } }
+
+  .buttons {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    height: min(22vh, 150px);
+  }
+  .big {
+    border: none; border-radius: 20px;
+    font-size: clamp(24px, 8vw, 36px); font-weight: 800;
+    color: #fff;
+  }
+  .big:active:not(:disabled) { transform: scale(.97); }
+  .big:disabled { background: #222831 !important; color: #4a525e !important; }
+  #lapBtn { background: var(--lap); }
+  #stopBtn { background: var(--stop); }
+  .big.reset { background: var(--reset) !important; color: var(--reset-ink) !important; }
+
+  /* ---------- 설정 ---------- */
+  .sheet-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    display: flex; align-items: flex-end; z-index: 10;
+  }
+  .sheet {
+    width: 100%; background: var(--panel); border-top: 1px solid var(--line);
+    border-radius: 20px 20px 0 0;
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+  }
+  .sheet h2 { margin: 0 0 4px; font-size: 20px; }
+  .sheet p { margin: 6px 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .row { display: flex; align-items: center; gap: 12px; margin: 16px 0 8px; }
+  .row input[type=range] { flex: 1; accent-color: var(--go); height: 32px; }
+  .row output { min-width: 72px; text-align: right; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .sheet-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 16px; }
+  .sbtn {
+    height: 48px; border-radius: 12px; border: 1px solid var(--line);
+    background: #21262d; color: var(--text); font-size: 16px; font-weight: 600;
+  }
+  .sbtn.primary { background: var(--go); color: var(--go-ink); border: none; }
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="top">
+    <span class="delay-tag" id="delayTag"></span>
+    <button class="gear" id="gearBtn" aria-label="설정">⚙</button>
+
+    <button class="start-btn" id="startBtn">카운트 시작</button>
+    <div class="signal hidden" id="signal"></div>
+    <div class="time hidden" id="time">0.00</div>
+  </section>
+
+  <section class="bottom">
+    <div class="laps" id="laps"></div>
+    <div class="buttons">
+      <button class="big" id="lapBtn" disabled>기록</button>
+      <button class="big" id="stopBtn" disabled>중지</button>
+    </div>
+  </section>
+</div>
+
+<div class="sheet-bg hidden" id="sheetBg">
+  <div class="sheet">
+    <h2>블루투스 딜레이 보정</h2>
+    <p>버튼 신호가 스피커에서 실제로 울리기까지 걸리는 시간만큼 스톱워치 시작을 늦춥니다. 블루투스 스피커는 보통 150~300ms입니다.</p>
+    <div class="row">
+      <input type="range" id="delayRange" min="0" max="600" step="10">
+      <output id="delayOut"></output>
+    </div>
+    <p id="detected"></p>
+    <div class="sheet-btns">
+      <button class="sbtn" id="testBtn">버저 테스트</button>
+      <button class="sbtn" id="defaultBtn">기본값</button>
+      <button class="sbtn primary" id="closeBtn">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const MAX_LAPS = 10;
+  const DEFAULT_DELAY = 250;          // 블루투스 스피커 평균 송출 지연(ms)
+  const GAP_MIN = 0.5, GAP_MAX = 1.5; // 신호 간 랜덤 간격(초)
+  const LEAD_IN = 0.4;                // 버튼을 누른 뒤 '제자리에'까지(초)
+
+  const $ = id => document.getElementById(id);
+  const startBtn = $('startBtn'), signalEl = $('signal'), timeEl = $('time');
+  const lapBtn = $('lapBtn'), stopBtn = $('stopBtn'), lapsEl = $('laps');
+  const gearBtn = $('gearBtn'), delayTag = $('delayTag');
+
+  // ---------- 설정 ----------
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  };
+  let delayMs = store.get('btDelayMs', DEFAULT_DELAY);
+
+  // ---------- 오디오 ----------
+  let ctx = null;
+  const buffers = {};
+  let activeSources = [];
+
+  function getCtx() {
+    if (!ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC({ latencyHint: 'interactive' });
+    }
+    return ctx;
+  }
+
+  // 앞뒤 무음을 잘라내 신호 간격이 정확히 랜덤 값이 되도록 함
+  function trimSilence(buf, threshold = 0.02) {
+    const d = buf.getChannelData(0);
+    let s = 0, e = d.length - 1;
+    while (s < e && Math.abs(d[s]) < threshold) s++;
+    while (e > s && Math.abs(d[e]) < threshold) e--;
+    s = Math.max(0, s - Math.floor(buf.sampleRate * 0.01));
+    e = Math.min(d.length - 1, e + Math.floor(buf.sampleRate * 0.03));
+    const out = ctx.createBuffer(buf.numberOfChannels, e - s + 1, buf.sampleRate);
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+      out.copyToChannel(buf.getChannelData(c).subarray(s, e + 1), c);
+    }
+    return out;
+  }
+
+  // 전자 출발 신호기(육상 공식 경기용)의 버저음 합성: 짧고 강한 복합 사각파
+  function makeBuzzer() {
+    const sr = ctx.sampleRate, dur = 0.55;
+    const buf = ctx.createBuffer(1, Math.floor(sr * dur), sr);
+    const d = buf.getChannelData(0);
+    const sq = (f, t) => (Math.sin(2 * Math.PI * f * t) >= 0 ? 1 : -1);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      let v = 0.45 * sq(880, t) + 0.30 * sq(1320, t) + 0.20 * sq(660, t)
+            + 0.05 * (Math.random() * 2 - 1);
+      const attack = Math.min(1, t / 0.004);
+      const release = Math.min(1, (dur - t) / 0.03);
+      v = Math.tanh(v * 1.6) * attack * release;
+      d[i] = v * 0.9;
+    }
+    return buf;
+  }
+
+  async function loadClip(name) {
+    const res = await fetch(`audio/${name}.mp3`);
+    const arr = await res.arrayBuffer();
+    const buf = await new Promise((ok, ng) => getCtx().decodeAudioData(arr, ok, ng));
+    return trimSilence(buf);
+  }
+
+  let audioReady = null;
+  function prepareAudio() {
+    if (!audioReady) {
+      getCtx();
+      audioReady = Promise.all([loadClip('ready'), loadClip('set')]).then(([r, s]) => {
+        buffers.ready = r; buffers.set = s; buffers.buzzer = makeBuzzer();
+      });
+    }
+    return audioReady;
+  }
+
+  async function unlockAudio() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+    const c = getCtx();
+    if (c.state !== 'running') await c.resume();
+    // iOS 무음 모드 대비: 아주 짧은 무음 재생으로 오디오 경로 활성화
+    const b = c.createBuffer(1, 1, c.sampleRate);
+    const s = c.createBufferSource(); s.buffer = b; s.connect(c.destination); s.start();
+  }
+
+  function play(buf, when) {
+    const g = ctx.createGain(); g.gain.value = 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.connect(g); g.connect(ctx.destination);
+    src.start(when);
+    activeSources.push(src);
+    return when + buf.duration;
+  }
+
+  function stopAllAudio() {
+    activeSources.forEach(s => { try { s.stop(); } catch {} });
+    activeSources = [];
+  }
+
+  // AudioContext 시간을 performance.now() 기준(ms)으로 변환
+  function ctxToPerf(t) {
+    return performance.now() + (t - ctx.currentTime) * 1000;
+  }
+
+  // ---------- 상태 ----------
+  // idle → countdown → running → stopped → (초기화) idle
+  let state = 'idle';
+  let startPerf = 0, stopElapsed = 0;
+  let laps = [];
+  let timers = [];
+  let raf = 0;
+  let wakeLock = null;
+
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  function fmt(ms) {
+    if (ms < 0) ms = 0;
+    const cs = Math.floor(ms / 10);
+    const m = Math.floor(cs / 6000);
+    const s = Math.floor((cs % 6000) / 100);
+    const c = cs % 100;
+    const cc = String(c).padStart(2, '0');
+    return m > 0 ? `${m}:${String(s).padStart(2, '0')}.${cc}` : `${s}.${cc}`;
+  }
+
+  function show(el, on) { el.classList.toggle('hidden', !on); }
+
+  function renderLaps(newIdx = -1) {
+    lapsEl.innerHTML = '';
+    for (let i = 0; i < MAX_LAPS; i++) {
+      const div = document.createElement('div');
+      const has = i < laps.length;
+      div.className = 'lap' + (has ? '' : ' empty') + (i === newIdx ? ' new' : '');
+      div.innerHTML = `<span class="no">${i + 1}</span><span class="t">${has ? fmt(laps[i]) : '—'}</span>`;
+      lapsEl.appendChild(div);
+    }
+  }
+
+  function renderDelayTag() {
+    delayTag.textContent = `BT 보정 ${delayMs}ms`;
+  }
+
+  function render() {
+    show(startBtn, state === 'idle');
+    show(signalEl, state === 'countdown');
+    show(timeEl, state === 'running' || state === 'stopped');
+    gearBtn.disabled = state === 'countdown' || state === 'running';
+
+    const stopped = state === 'stopped';
+    lapBtn.textContent = stopped ? '초기화' : '기록';
+    stopBtn.textContent = stopped ? '초기화' : (state === 'countdown' ? '취소' : '중지');
+    lapBtn.classList.toggle('reset', stopped);
+    stopBtn.classList.toggle('reset', stopped);
+
+    lapBtn.disabled = !(state === 'running' && laps.length < MAX_LAPS) && !stopped;
+    stopBtn.disabled = !(state === 'countdown' || state === 'running' || stopped);
+  }
+
+  function tick() {
+    const now = performance.now();
+    if (state === 'running') {
+      timeEl.textContent = fmt(now - startPerf);
+      raf = requestAnimationFrame(tick);
+    }
+  }
+
+  async function lockScreen() {
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+  }
+  function releaseScreen() {
+    try { wakeLock && wakeLock.release(); } catch {}
+    wakeLock = null;
+  }
+
+  function at(perfMs, fn) {
+    timers.push(setTimeout(fn, Math.max(0, perfMs - performance.now())));
+  }
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+  async function startCountdown() {
+    if (state !== 'idle') return;
+    startBtn.disabled = true;
+    try {
+      await unlockAudio();
+      await prepareAudio();
+    } catch (e) {
+      startBtn.disabled = false;
+      alert('소리를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 다시 시도하세요.');
+      return;
+    }
+    startBtn.disabled = false;
+
+    state = 'countdown';
+    laps = []; renderLaps();
+    signalEl.className = 'signal wait';
+    signalEl.textContent = '준비…';
+    render();
+    lockScreen();
+
+    // 모든 소리를 오디오 클럭에 미리 예약(정밀 타이밍)
+    const t0 = ctx.currentTime + LEAD_IN;
+    const tReadyEnd = play(buffers.ready, t0);
+    const tSet = tReadyEnd + rand(GAP_MIN, GAP_MAX);
+    const tSetEnd = play(buffers.set, tSet);
+    const tGo = tSetEnd + rand(GAP_MIN, GAP_MAX);
+    play(buffers.buzzer, tGo);
+
+    // 화면 표시는 스피커에서 실제 소리가 날 때(딜레이 보정)에 맞춤
+    const lag = delayMs;
+    at(ctxToPerf(t0) + lag, () => { signalEl.className = 'signal'; signalEl.textContent = '제자리에'; });
+    at(ctxToPerf(tSet) + lag, () => { signalEl.textContent = '차렷'; });
+
+    startPerf = ctxToPerf(tGo) + lag;
+    at(startPerf, () => {
+      if (state !== 'countdown') return;
+      state = 'running';
+      render();
+      cancelAnimationFrame(raf);
+      tick();
+    });
+  }
+
+  function recordLap() {
+    if (state !== 'running' || laps.length >= MAX_LAPS) return;
+    laps.push(performance.now() - startPerf);
+    renderLaps(laps.length - 1);
+    if (navigator.vibrate) navigator.vibrate(30);
+    render();
+  }
+
+  function stopWatch() {
+    if (state === 'running') {
+      stopElapsed = performance.now() - startPerf;
+      cancelAnimationFrame(raf);
+      timeEl.textContent = fmt(stopElapsed);
+      state = 'stopped';
+      clearTimers();
+      releaseScreen();
+      if (navigator.vibrate) navigator.vibrate([40, 40, 40]);
+      render();
+    } else if (state === 'countdown') {
+      // 부정 출발 등으로 카운트다운 취소
+      stopAllAudio();
+      clearTimers();
+      releaseScreen();
+      state = 'idle';
+      render();
+    }
+  }
+
+  function reset() {
+    stopAllAudio();
+    clearTimers();
+    cancelAnimationFrame(raf);
+    laps = [];
+    timeEl.textContent = '0.00';
+    state = 'idle';
+    renderLaps();
+    render();
+  }
+
+  startBtn.addEventListener('click', startCountdown);
+
+  // 기록·중지는 손가락이 닿는 즉시(pointerdown) 반응해 시간 오차를 줄이고,
+  // 초기화는 일반 click으로 처리(중지 직후 같은 터치로 초기화되지 않도록 잠시 무시)
+  let stoppedAt = 0;
+  const canReset = () => state === 'stopped' && performance.now() - stoppedAt > 500;
+  lapBtn.addEventListener('pointerdown', () => { if (state === 'running') recordLap(); });
+  stopBtn.addEventListener('pointerdown', () => {
+    if (state === 'running' || state === 'countdown') { stopWatch(); stoppedAt = performance.now(); }
+  });
+  lapBtn.addEventListener('click', () => { if (canReset()) reset(); });
+  stopBtn.addEventListener('click', () => { if (canReset()) reset(); });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && (state === 'running' || state === 'countdown')) lockScreen();
+  });
+
+  // ---------- 설정 시트 ----------
+  const sheetBg = $('sheetBg'), range = $('delayRange'), out = $('delayOut'), detected = $('detected');
+  function syncDelay() {
+    range.value = delayMs;
+    out.textContent = `${delayMs}ms`;
+    renderDelayTag();
+  }
+  gearBtn.addEventListener('click', async () => {
+    syncDelay();
+    try { await unlockAudio(); } catch {}
+    const c = getCtx();
+    const lat = ((c.baseLatency || 0) + (c.outputLatency || 0)) * 1000;
+    detected.textContent = lat > 0
+      ? `기기에서 감지된 출력 지연: 약 ${Math.round(lat)}ms (참고용)`
+      : '';
+    show(sheetBg, true);
+  });
+  range.addEventListener('input', () => {
+    delayMs = Number(range.value);
+    store.set('btDelayMs', delayMs);
+    syncDelay();
+  });
+  $('defaultBtn').addEventListener('click', () => {
+    delayMs = DEFAULT_DELAY; store.set('btDelayMs', delayMs); syncDelay();
+  });
+  $('testBtn').addEventListener('click', async () => {
+    await unlockAudio(); await prepareAudio();
+    play(buffers.buzzer, ctx.currentTime + 0.05);
+  });
+  $('closeBtn').addEventListener('click', () => show(sheetBg, false));
+  sheetBg.addEventListener('click', e => { if (e.target === sheetBg) show(sheetBg, false); });
+
+  // ---------- 초기화 ----------
+  renderLaps();
+  renderDelayTag();
+  render();
+  // 미리 소리 디코딩(첫 실행 지연 최소화)
+  window.addEventListener('load', () => { prepareAudio().catch(() => { audioReady = null; }); });
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>
