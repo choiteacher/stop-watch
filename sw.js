@@ -1,5 +1,5 @@
 // 운동장처럼 네트워크가 약한 곳에서도 동작하도록 캐시(stale-while-revalidate)
-const CACHE = 'stop-watch-v6';
+const CACHE = 'stop-watch-v7';
 const ASSETS = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'audio/ready.mp3', 'audio/set.mp3'];
 
 self.addEventListener('install', e => {

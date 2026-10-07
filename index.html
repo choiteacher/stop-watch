@@ -269,13 +269,13 @@
 
   // 전자 출발 신호기(육상 공식 경기용)의 버저음 합성: 짧고 강한 복합 사각파
   function makeBuzzer() {
-    const sr = ctx.sampleRate, dur = 0.4125;
+    const sr = ctx.sampleRate, dur = 0.309375;
     const buf = ctx.createBuffer(1, Math.floor(sr * dur), sr);
     const d = buf.getChannelData(0);
     const sq = (f, t) => (Math.sin(2 * Math.PI * f * t) >= 0 ? 1 : -1);
     for (let i = 0; i < d.length; i++) {
       const t = i / sr;
-      let v = 0.45 * sq(371.25, t) + 0.30 * sq(556.875, t) + 0.20 * sq(278.4375, t)
+      let v = 0.45 * sq(433.125, t) + 0.30 * sq(649.6875, t) + 0.20 * sq(324.84375, t)
             + 0.05 * (Math.random() * 2 - 1);
       const attack = Math.min(1, t / 0.004);
       const release = Math.min(1, (dur - t) / 0.03);
