@@ -275,7 +275,7 @@
     const sq = (f, t) => (Math.sin(2 * Math.PI * f * t) >= 0 ? 1 : -1);
     for (let i = 0; i < d.length; i++) {
       const t = i / sr;
-      let v = 0.45 * sq(495, t) + 0.30 * sq(742.5, t) + 0.20 * sq(371.25, t)
+      let v = 0.45 * sq(371.25, t) + 0.30 * sq(556.875, t) + 0.20 * sq(278.4375, t)
             + 0.05 * (Math.random() * 2 - 1);
       const attack = Math.min(1, t / 0.004);
       const release = Math.min(1, (dur - t) / 0.03);
